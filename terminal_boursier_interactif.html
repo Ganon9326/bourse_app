@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal Boursier Pro — Cours en Direct & Watchlist</title>
+  <!-- Configuration Application Mobile (PWA / Écran d'accueil) -->
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MarketPulse">
+  <link id="pwa-manifest-link" rel="manifest" href="">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- FontAwesome pour les icônes -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            terminal: {
+              bg: '#0d1117',
+              card: '#161b22',
+              border: '#30363d',
+              hover: '#1f242c',
+              accent: '#2f81f7',
+              green: '#2ea043',
+              red: '#da3633'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-terminal-bg dark:text-slate-100 font-sans antialiased transition-colors duration-200 min-h-screen flex flex-col">
+
+  <!-- Notification Toast (remplace alert()) -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Ruban défilant TradingView (Ticker Tape) -->
+  <div class="w-full border-b border-slate-200 dark:border-terminal-border bg-white dark:bg-terminal-card overflow-hidden">
+    <div id="tv-ticker-tape" class="w-full min-h-[46px]"></div>
+  </div>
+
+  <!-- En-tête de navigation -->
+  <header class="sticky top-0 z-30 backdrop-blur-md bg-white/85 dark:bg-terminal-bg/85 border-b border-slate-200 dark:border-terminal-border">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Logo & Titre -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-blue-600 dark:bg-terminal-accent flex items-center justify-center text-white shadow-sm">
+          <i class="fa-solid fa-chart-line text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight flex items-center gap-2">
+            MarketPulse <span class="text-xs font-mono uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border border-blue-200 dark:border-blue-800">Live</span>
+          </h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Terminal financier & suivi temps réel</p>
+        </div>
+      </div>
+
+      <!-- Barre de recherche rapide de symbole -->
+      <form id="quick-search-form" class="flex-1 max-w-md flex items-center">
+        <div class="relative w-full flex items-center">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 text-slate-400 text-sm"></i>
+          <input 
+            type="text" 
+            id="quick-search-input" 
+            placeholder="Charger un symbole (ex: AAPL, EURONEXT:MC, BTCUSD)..." 
+            class="w-full pl-9 pr-20 py-2 text-sm rounded-lg bg-slate-100 dark:bg-terminal-card border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-terminal-accent transition-all font-mono uppercase placeholder:normal-case placeholder:font-sans"
+          >
+          <button 
+            type="submit" 
+            class="absolute right-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 hover:bg-blue-700 dark:bg-terminal-accent dark:hover:bg-blue-500 text-white transition-colors"
+          >
+            Afficher
+          </button>
+        </div>
+      </form>
+
+      <!-- Contrôles de droite : Statut marché & Thème -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Bouton Partage & Synchro Multi-appareils -->
+        <button 
+          id="open-share-modal-btn" 
+          type="button" 
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-700 dark:text-emerald-400 border border-emerald-600/30 text-xs font-semibold transition-colors"
+          title="Synchroniser un 2e appareil ou partager avec des amis"
+        >
+          <i class="fa-solid fa-share-nodes"></i>
+          <span class="hidden sm:inline">Partager / Sync</span>
+        </button>
+
+        <!-- Bouton Installer Appli / Mode Pop-up -->
+        <button 
+          id="install-app-btn" 
+          type="button" 
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-terminal-accent dark:hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors"
+          title="Installer sur téléphone ou ouvrir en fenêtre pop-up"
+        >
+          <i class="fa-solid fa-mobile-screen-button"></i>
+          <span class="hidden sm:inline">App / Pop-up</span>
+        </button>
+
+        <div id="connection-status-badge" class="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-terminal-card border border-slate-200 dark:border-terminal-border text-xs font-medium">
+          <span id="connection-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="connection-text" class="text-slate-600 dark:text-slate-300">Flux en direct</span>
+        </div>
+
+        <!-- Bouton de changement de thème -->
+        <button 
+          id="theme-toggle" 
+          type="button" 
+          aria-label="Changer le thème"
+          class="p-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-terminal-card dark:hover:bg-terminal-hover border border-slate-200 dark:border-terminal-border text-slate-700 dark:text-slate-200 transition-colors"
+          title="Basculer Thème Sombre / Clair"
+        >
+          <i id="theme-icon" class="fa-solid fa-sun text-amber-400"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Modale Partage, Multi-appareils & Installation Mobile / Pop-up -->
+  <div id="share-install-modal" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-terminal-border flex items-center justify-between">
+        <h3 class="text-base font-bold flex items-center gap-2">
+          <i class="fa-solid fa-mobile-screen-button text-blue-500"></i> Appli Mobile, Pop-up & Partage
+        </h3>
+        <button type="button" id="close-share-modal-btn" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-terminal-hover">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <div class="p-5 flex flex-col gap-5 max-h-[82vh] overflow-y-auto">
+        
+        <!-- Section 1 : Mode Pop-up & Installation Mobile -->
+        <div class="p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/20 flex flex-col gap-3">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">1. Application Mobile & Fenêtre Pop-up</h4>
+              <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                Ouvrez le terminal en mini-fenêtre flottante (Pop-up) ou installez-le comme une vraie appli sur votre téléphone.
+              </p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" id="trigger-native-install-btn" class="py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors">
+              <i class="fa-solid fa-download"></i> Installer sur l'écran d'accueil
+            </button>
+            <button type="button" id="open-popup-window-btn" class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 dark:bg-terminal-hover text-white text-xs font-semibold border border-slate-700 flex items-center justify-center gap-1.5 transition-colors">
+              <i class="fa-solid fa-window-restore"></i> Ouvrir en Pop-up
+            </button>
+          </div>
+
+          <div class="text-[11px] text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-terminal-bg p-2.5 rounded-lg border border-slate-200 dark:border-terminal-border leading-relaxed">
+            <strong>Astuce téléphone :</strong> Sur <strong>iPhone (Safari)</strong>, appuyez sur <i class="fa-solid fa-arrow-up-from-bracket text-blue-500"></i> <em>Partager</em> puis <strong>« Sur l'écran d'accueil »</strong>. Sur <strong>Android (Chrome)</strong>, ouvrez le menu <i class="fa-solid fa-ellipsis-vertical"></i> puis <strong>« Installer l'application »</strong>.
+          </div>
+        </div>
+
+        <!-- Section 2 : Synchronisation Cloud & Partage avec des amis -->
+        <div class="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">2. Synchro Multi-appareils & Amis</h4>
+            <span id="cloud-sync-status" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">Connexion...</span>
+          </div>
+          <p class="text-xs text-slate-600 dark:text-slate-300">
+            Partagez ce <strong>Code Espace</strong> ou ce lien avec votre 2ᵉ appareil (téléphone/tablette) ou vos amis pour synchroniser votre Watchlist en temps réel. <em>(Vos clés API courtier restent strictement privées sur cet appareil.)</em>
+          </p>
+
+          <!-- Code Espace Actuel -->
+          <div class="flex items-center gap-2">
+            <div class="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border font-mono text-xs flex items-center justify-between">
+              <span class="text-slate-400">Code Espace :</span>
+              <strong id="current-room-code" class="text-slate-900 dark:text-white tracking-wider">---</strong>
+            </div>
+            <button type="button" id="copy-room-link-btn" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors">
+              <i class="fa-solid fa-copy"></i> Copier le lien
+            </button>
+          </div>
+
+          <!-- Rejoindre l'espace d'un ami / 2e appareil -->
+          <form id="join-room-form" class="flex items-center gap-2 pt-1">
+            <input 
+              type="text" 
+              id="join-room-input" 
+              placeholder="Entrer le code d'un ami ou 2e appareil..." 
+              class="flex-1 px-3 py-2 text-xs font-mono uppercase rounded-lg bg-white dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+            <button type="submit" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 dark:bg-terminal-hover text-white text-xs font-semibold shrink-0 transition-colors">
+              Rejoindre
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenu Principal -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6">
+    
+    <!-- Raccourcis rapides des actifs populaires & Cours de l'Or -->
+    <div class="mb-6 flex flex-col gap-2.5">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-1">Actions & Indices :</span>
+        <button type="button" data-symbol="FOREXCOM:FRA40" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border hover:border-blue-500 dark:hover:border-terminal-accent transition-all">CAC 40</button>
+        <button type="button" data-symbol="EURONEXT:MC" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border hover:border-blue-500 dark:hover:border-terminal-accent transition-all">LVMH (MC)</button>
+        <button type="button" data-symbol="EURONEXT:TTE" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border hover:border-blue-500 dark:hover:border-terminal-accent transition-all">TotalEnergies (TTE)</button>
+        <button type="button" data-symbol="NASDAQ:NVDA" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border hover:border-blue-500 dark:hover:border-terminal-accent transition-all">NVIDIA (NVDA)</button>
+        <button type="button" data-symbol="NASDAQ:AAPL" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border hover:border-blue-500 dark:hover:border-terminal-accent transition-all">Apple (AAPL)</button>
+        <button type="button" data-symbol="BINANCE:BTCUSDT" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border hover:border-blue-500 dark:hover:border-terminal-accent transition-all">Bitcoin (BTC)</button>
+      </div>
+
+      <!-- Barre dédiée aux différents cours de l'Or & Métaux -->
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mr-1 flex items-center gap-1.5">
+          <i class="fa-solid fa-coins"></i> Cours de l'Or :
+        </span>
+        <button type="button" data-symbol="OANDA:XAUUSD" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-amber-50/70 dark:bg-amber-950/25 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/60 hover:border-amber-500 transition-all">Or Spot ($/oz)</button>
+        <button type="button" data-symbol="OANDA:XAUEUR" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-amber-50/70 dark:bg-amber-950/25 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/60 hover:border-amber-500 transition-all">Or Spot (€/oz)</button>
+        <button type="button" data-symbol="TVC:GOLD" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-amber-50/70 dark:bg-amber-950/25 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/60 hover:border-amber-500 transition-all">Or Référence (TVC)</button>
+        <button type="button" data-symbol="COMEX:GC1!" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-amber-50/70 dark:bg-amber-950/25 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/60 hover:border-amber-500 transition-all">Futures Or (COMEX)</button>
+        <button type="button" data-symbol="AMEX:GLD" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-amber-50/70 dark:bg-amber-950/25 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/60 hover:border-amber-500 transition-all">ETF SPDR Gold (GLD)</button>
+        <button type="button" data-symbol="OANDA:XAGUSD" class="quick-chip px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-amber-50/70 dark:bg-amber-950/25 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/60 hover:border-amber-500 transition-all">Argent Spot ($/oz)</button>
+      </div>
+    </div>
+
+    <!-- Grille Principale : Colonne Graphique (8 cols) + Colonne Watchlist & Analyse (4 cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- COLONNE GAUCHE : Informations du symbole & Graphique Avancé -->
+      <div class="lg:col-span-8 flex flex-col gap-6">
+        
+        <!-- Bannière d'information du symbole actif (Widget Single Ticker / Symbol Info) -->
+        <div class="rounded-xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border p-3 shadow-sm">
+          <div class="flex items-center justify-between mb-2 px-1">
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-info text-blue-500"></i> Actif sélectionné : <strong id="active-symbol-label" class="font-mono text-slate-800 dark:text-slate-200">NASDAQ:NVDA</strong>
+            </span>
+            <button 
+              id="add-current-to-watchlist" 
+              type="button"
+              class="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 dark:bg-terminal-hover dark:hover:bg-blue-950/50 dark:text-slate-300 dark:hover:text-blue-400 border border-slate-200 dark:border-terminal-border transition-colors flex items-center gap-1.5"
+            >
+              <i class="fa-solid fa-star text-amber-400"></i> Ajouter à ma Watchlist
+            </button>
+          </div>
+          <div id="tv-symbol-info" class="w-full min-h-[110px] rounded-lg overflow-hidden"></div>
+        </div>
+
+        <!-- Graphique Avancé TradingView -->
+        <div class="rounded-xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border p-3 shadow-sm flex flex-col">
+          <div class="flex items-center justify-between mb-2 px-1">
+            <h2 class="text-sm font-semibold flex items-center gap-2">
+              <i class="fa-solid fa-chart-candlestick text-blue-500"></i> Graphique Interactif & Indicateurs
+            </h2>
+            <span class="text-xs text-slate-400">Utilisez la barre d'outils du graphique pour dessiner ou comparer</span>
+          </div>
+          <div id="tv-advanced-chart" class="w-full h-[460px] sm:h-[520px] rounded-lg overflow-hidden"></div>
+        </div>
+
+        <!-- Espace Portefeuille Virtuel & Passage d'Ordres (Bas à Gauche) -->
+        <div class="rounded-xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border p-4 sm:p-5 shadow-sm flex flex-col gap-5">
+          
+          <!-- En-tête du Portefeuille & Solde -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-terminal-border pb-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-base font-bold flex items-center gap-2">
+                  <i class="fa-solid fa-wallet text-emerald-500"></i> Mon Cockpit Privé & Portefeuille
+                </h2>
+                <span id="broker-sync-badge" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20">Mode Local</span>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Synchronisez votre vrai compte courtier pour voir votre solde et investir en un clic</p>
+            </div>
+
+            <!-- Bouton Synchronisation Compte Réel & Dépôt -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button 
+                type="button" 
+                id="sync-alpaca-account-btn"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                <i class="fa-solid fa-arrows-rotate"></i> Sync Compte Réel
+              </button>
+
+              <form id="deposit-form" class="flex items-center gap-1.5">
+                <div class="relative">
+                  <input 
+                    type="number" 
+                    id="deposit-amount" 
+                    min="10" 
+                    step="any" 
+                    placeholder="Montant (€)" 
+                    value="1000"
+                    required
+                    class="w-24 sm:w-28 pl-2.5 pr-6 py-1.5 text-xs font-mono rounded-lg bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                  <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">€</span>
+                </div>
+                <button 
+                  type="submit" 
+                  title="Ajouter des liquidités (mode local)"
+                  class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-600 dark:text-emerald-400 border border-emerald-600/30 transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </form>
+
+              <button 
+                type="button" 
+                id="reset-portfolio-btn"
+                title="Réinitialiser le suivi local"
+                class="p-1.5 text-xs rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 border border-slate-200 dark:border-terminal-border transition-colors"
+              >
+                <i class="fa-solid fa-rotate-left"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Cartes KPI du Portefeuille -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border">
+              <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Valeur Totale</span>
+              <span id="pf-total-value" class="text-base sm:text-lg font-bold font-mono text-slate-900 dark:text-white mt-0.5 block">10 000,00 €</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border">
+              <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Liquidités Disponibles</span>
+              <span id="pf-cash-balance" class="text-base sm:text-lg font-bold font-mono text-blue-600 dark:text-terminal-accent mt-0.5 block">10 000,00 €</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border">
+              <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Capital Investi</span>
+              <span id="pf-invested-value" class="text-base sm:text-lg font-bold font-mono text-slate-800 dark:text-slate-200 mt-0.5 block">0,00 €</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border">
+              <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Gain / Perte Latent</span>
+              <span id="pf-pnl-value" class="text-base sm:text-lg font-bold font-mono text-emerald-500 mt-0.5 block">+0,00 € (0.0%)</span>
+            </div>
+          </div>
+
+          <!-- Ticket de Passage d'Ordre & Liste des Positions -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            
+            <!-- Formulaire d'Investissement (5 cols) -->
+            <form id="trade-order-form" class="md:col-span-5 p-3.5 rounded-xl bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border flex flex-col gap-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Passer un ordre</span>
+                <span id="trade-symbol-badge" class="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">OANDA:XAUUSD</span>
+              </div>
+
+              <!-- Sélecteur de Courtier Réel -->
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  <label for="broker-select">Courtier réel cible</label>
+                  <button type="button" id="toggle-broker-api-btn" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                    <i class="fa-solid fa-key text-[10px]"></i> Configurer API
+                  </button>
+                </div>
+                <select id="broker-select" class="w-full px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="ibkr">Interactive Brokers (IBKR Portal)</option>
+                  <option value="alpaca">Alpaca Markets (API REST / Dashboard)</option>
+                  <option value="saxo">Saxo Banque (SaxoTraderGO)</option>
+                  <option value="degiro">DEGIRO (WebTrader)</option>
+                  <option value="bourso">BoursoBank (Bourse Directe)</option>
+                </select>
+              </div>
+
+              <!-- Panneau optionnel Clés API Alpaca (masqué par défaut) -->
+              <div id="broker-api-panel" class="hidden p-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20 flex flex-col gap-2">
+                <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <strong>Connexion Privée Alpaca :</strong> Vos clés restent stockées uniquement sur votre appareil et synchronisent votre vrai solde, vos positions et vos ordres.
+                </p>
+                <input type="text" id="alpaca-key-id" placeholder="APCA-API-KEY-ID" class="w-full px-2.5 py-1 text-[11px] font-mono rounded bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border">
+                <input type="password" id="alpaca-secret-key" placeholder="APCA-API-SECRET-KEY" class="w-full px-2.5 py-1 text-[11px] font-mono rounded bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border">
+                <div class="flex items-center justify-between text-[11px]">
+                  <label class="flex items-center gap-1.5 cursor-pointer text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" id="alpaca-live-mode" class="rounded border-slate-300 text-blue-600">
+                    <span>Mode Argent Réel (Live)</span>
+                  </label>
+                  <button type="button" id="save-broker-api-btn" class="px-2.5 py-1 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700">Connecter & Sync</button>
+                </div>
+              </div>
+
+              <!-- Sélecteur Achat / Vente -->
+              <div class="grid grid-cols-2 gap-1.5 p-1 rounded-lg bg-slate-200/70 dark:bg-terminal-card">
+                <button type="button" id="order-side-buy" class="py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm transition-all">
+                  Acheter / Investir
+                </button>
+                <button type="button" id="order-side-sell" class="py-1.5 text-xs font-bold rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                  Vendre
+                </button>
+              </div>
+
+              <!-- Prix d'exécution (modifiable pour coller au graphique) -->
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  <label for="trade-price-input">Cours unitaire (€)</label>
+                  <span>Prix du marché</span>
+                </div>
+                <input 
+                  type="number" 
+                  id="trade-price-input" 
+                  step="0.01" 
+                  min="0.01" 
+                  required
+                  class="w-full px-3 py-1.5 text-xs font-mono rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+              </div>
+
+              <!-- Montant à investir en € -->
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  <label for="trade-amount-input">Montant (€)</label>
+                  <div class="flex gap-1.5">
+                    <button type="button" data-pct="0.25" class="pct-btn hover:text-blue-500 font-mono">25%</button>
+                    <button type="button" data-pct="0.50" class="pct-btn hover:text-blue-500 font-mono">50%</button>
+                    <button type="button" data-pct="1" class="pct-btn hover:text-blue-500 font-mono">Max</button>
+                  </div>
+                </div>
+                <input 
+                  type="number" 
+                  id="trade-amount-input" 
+                  step="1" 
+                  min="1" 
+                  value="500"
+                  required
+                  class="w-full px-3 py-1.5 text-xs font-mono rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+              </div>
+
+              <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                <span>Quantité estimée :</span>
+                <span id="trade-estimated-qty" class="font-mono font-semibold text-slate-800 dark:text-slate-200">0.0000 unités</span>
+              </div>
+
+              <div class="flex flex-col gap-1.5 pt-1">
+                <button 
+                  type="button" 
+                  id="execute-real-broker-btn"
+                  class="w-full py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-terminal-accent dark:hover:bg-blue-500 text-white shadow-sm transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Exécuter chez mon courtier
+                </button>
+
+                <button 
+                  type="submit" 
+                  id="trade-submit-btn"
+                  class="w-full py-1.5 text-xs font-semibold rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-700 dark:text-emerald-400 border border-emerald-600/30 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <i class="fa-solid fa-book"></i> Enregistrer dans mon suivi local
+                </button>
+              </div>
+            </form>
+
+            <!-- Tableau des Positions Détenues & Historique (7 cols) -->
+            <div class="md:col-span-7 flex flex-col rounded-xl bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border p-3.5">
+              <div class="flex items-center justify-between mb-2.5">
+                <div class="flex gap-2">
+                  <button type="button" id="pf-tab-positions" class="text-xs font-bold px-2.5 py-1 rounded-md bg-white dark:bg-terminal-card text-slate-900 dark:text-white shadow-sm">
+                    Mes Positions (<span id="pf-positions-count">0</span>)
+                  </button>
+                  <button type="button" id="pf-tab-history" class="text-xs font-medium px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                    Historique
+                  </button>
+                </div>
+                <button type="button" id="simulate-tick-btn" title="Simuler une variation de marché sur vos positions" class="text-[11px] px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors flex items-center gap-1">
+                  <i class="fa-solid fa-wave-square"></i> Actualiser cours
+                </button>
+              </div>
+
+              <!-- Liste des positions actives -->
+              <div id="pf-positions-list" class="flex-1 overflow-y-auto max-h-[235px] flex flex-col gap-2 pr-1">
+                <!-- Injecté via JS -->
+              </div>
+
+              <!-- Historique des transactions (masqué par défaut) -->
+              <div id="pf-history-list" class="hidden flex-1 overflow-y-auto max-h-[235px] flex flex-col gap-1.5 pr-1">
+                <!-- Injecté via JS -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COLONNE DROITE : Ma Watchlist & Analyse Technique -->
+      <div class="lg:col-span-4 flex flex-col gap-6">
+        
+        <!-- Carte Watchlist Personnalisée -->
+        <div class="rounded-xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border p-4 shadow-sm flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-base font-bold flex items-center gap-2">
+                <i class="fa-solid fa-bookmark text-blue-500"></i> Ma Watchlist
+              </h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Cliquez sur une ligne pour charger son graphique</p>
+            </div>
+            <button 
+              id="reset-watchlist-btn" 
+              type="button" 
+              title="Réinitialiser la liste par défaut"
+              class="text-xs px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-terminal-hover transition-colors"
+            >
+              <i class="fa-solid fa-rotate-right"></i> Défaut
+            </button>
+          </div>
+
+          <!-- Formulaire d'ajout à la Watchlist -->
+          <form id="add-watchlist-form" class="mb-3 flex flex-col gap-2">
+            <div class="flex gap-2">
+              <input 
+                type="text" 
+                id="watchlist-symbol-input" 
+                placeholder="Symbole ou mot-clé (ex: TSLA, OR, XAUUSD)" 
+                required
+                class="flex-1 px-3 py-2 text-xs sm:text-sm rounded-lg bg-slate-50 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase placeholder:normal-case placeholder:font-sans"
+              >
+              <button 
+                type="submit" 
+                class="px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                <i class="fa-solid fa-plus"></i> Ajouter
+              </button>
+            </div>
+            <!-- Raccourcis d'ajout rapide pour l'Or -->
+            <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span class="text-[11px] text-slate-400">Ajout rapide Or :</span>
+              <button type="button" data-add-symbol="OANDA:XAUUSD" data-add-label="Or Spot ($/oz)" class="quick-add-gold text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-colors">+ Or ($)</button>
+              <button type="button" data-add-symbol="OANDA:XAUEUR" data-add-label="Or Spot (€/oz)" class="quick-add-gold text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-colors">+ Or (€)</button>
+              <button type="button" data-add-symbol="COMEX:GC1!" data-add-label="Futures Or COMEX" class="quick-add-gold text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-colors">+ Futures Or</button>
+              <button type="button" data-add-symbol="AMEX:GLD" data-add-label="ETF SPDR Gold" class="quick-add-gold text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-colors">+ ETF Or</button>
+            </div>
+          </form>
+
+          <!-- Onglets de filtrage de la Watchlist -->
+          <div class="grid grid-cols-3 gap-1 p-1 mb-3 rounded-lg bg-slate-100 dark:bg-terminal-bg border border-slate-200 dark:border-terminal-border">
+            <button type="button" data-filter="all" class="watchlist-filter-btn py-1.5 px-2 text-xs font-medium rounded-md bg-white dark:bg-terminal-card text-slate-900 dark:text-white shadow-sm transition-all">
+              Tout
+            </button>
+            <button type="button" data-filter="stocks" class="watchlist-filter-btn py-1.5 px-2 text-xs font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+              Actions
+            </button>
+            <button type="button" data-filter="gold" class="watchlist-filter-btn py-1.5 px-2 text-xs font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-all flex items-center justify-center gap-1">
+              <i class="fa-solid fa-coins text-amber-500 text-[11px]"></i> Or & Métaux
+            </button>
+          </div>
+
+          <!-- Liste dynamique des actifs suivis -->
+          <div id="watchlist-items" class="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
+            <!-- Injecté via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Tableau récapitulatif en direct (1 seul widget léger pour Or, Indices & Actions) -->
+        <div class="rounded-xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border p-4 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold flex items-center gap-2">
+              <i class="fa-solid fa-table-list text-amber-500"></i> Cotations Or & Marchés
+            </h2>
+            <span class="text-[11px] text-slate-400">Temps réel</span>
+          </div>
+          <div id="tv-market-overview" class="w-full h-[380px] rounded-lg overflow-hidden"></div>
+        </div>
+
+        <!-- Carte Analyse Technique TradingView (Jauge d'achat/vente) -->
+        <div class="rounded-xl bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border p-4 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold flex items-center gap-2">
+              <i class="fa-solid fa-gauge-high text-blue-500"></i> Consensus Technique
+            </h2>
+            <span class="text-xs font-mono text-slate-400" id="ta-symbol-badge">NASDAQ:NVDA</span>
+          </div>
+          <div id="tv-technical-analysis" class="w-full h-[360px] rounded-lg overflow-hidden"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Pied de page -->
+  <footer class="border-t border-slate-200 dark:border-terminal-border bg-white dark:bg-terminal-card py-4 px-4 sm:px-6 mt-8">
+    <div class="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+      <p>Données de marché fournies en temps réel via les widgets officiels <strong>TradingView</strong>.</p>
+      <p>Votre watchlist et vos espaces partagés sont synchronisés automatiquement.</p>
+    </div>
+  </footer>
+
+  <!-- Synchronisation Cloud Multi-Appareils & Partage (Firebase) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window.CloudSyncManager = {
+      db: null,
+      auth: null,
+      user: null,
+      appId: typeof __app_id !== 'undefined' ? __app_id : 'marketpulse-app',
+      unsubscribe: null,
+      isRemoteUpdate: false,
+
+      async init() {
+        const statusEl = document.getElementById('cloud-sync-status');
+        try {
+          if (typeof __firebase_config === 'undefined') {
+            if (statusEl) statusEl.textContent = 'Mode Hors-Cloud';
+            return;
+          }
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          this.auth = getAuth(app);
+          this.db = getFirestore(app);
+
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(this.auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(this.auth);
+          }
+          this.user = this.auth.currentUser;
+
+          if (statusEl) statusEl.textContent = 'Synchronisé en direct';
+          this.subscribeToRoom(window.getActiveRoomCode());
+        } catch (err) {
+          console.error('Erreur initialisation sync cloud:', err);
+          if (statusEl) statusEl.textContent = 'Sync locale uniquement';
+        }
+      },
+
+      subscribeToRoom(roomCode) {
+        if (!this.db || !this.user || !roomCode) return;
+        if (this.unsubscribe) {
+          this.unsubscribe();
+        }
+        const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'shared_terminals', roomCode);
+        this.unsubscribe = onSnapshot(
+          roomRef,
+          (snapshot) => {
+            if (!snapshot.exists()) {
+              this.pushStateToCloud();
+              return;
+            }
+            const data = snapshot.data();
+            if (data && Array.isArray(data.watchlist) && data.watchlist.length > 0) {
+              this.isRemoteUpdate = true;
+              window.applySyncedWatchlist(data.watchlist, data.activeSymbol);
+              this.isRemoteUpdate = false;
+            }
+          },
+          (error) => {
+            console.error('Erreur écoute espace partagé:', error);
+          }
+        );
+      },
+
+      async pushStateToCloud() {
+        if (!this.db || !this.user || this.isRemoteUpdate) return;
+        const roomCode = window.getActiveRoomCode();
+        if (!roomCode) return;
+        try {
+          const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'shared_terminals', roomCode);
+          await setDoc(
+            roomRef,
+            {
+              watchlist: window.getCurrentWatchlist(),
+              activeSymbol: window.getCurrentActiveSymbol(),
+              updatedAt: Date.now()
+            },
+            { merge: true }
+          );
+        } catch (err) {
+          console.error('Erreur sauvegarde cloud:', err);
+        }
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.CloudSyncManager.init();
+    });
+  </script>
+
+  <!-- Logique Applicative JavaScript -->
+  <script>
+    /**
+     * Configuration et État Global de l'Application
+     */
+    const STORAGE_KEY_WATCHLIST = 'marketpulse_watchlist_v3';
+    const STORAGE_KEY_THEME = 'marketpulse_theme_v1';
+    const STORAGE_KEY_PORTFOLIO = 'marketpulse_portfolio_v1';
+    const STORAGE_KEY_BROKER = 'marketpulse_broker_cfg_v1';
+    const STORAGE_KEY_ROOM = 'marketpulse_room_code_v1';
+
+    let deferredInstallPrompt = null;
+
+    /**
+     * Gestion du Code Espace pour synchroniser un 2e appareil ou partager avec des amis (Défini en premier)
+     */
+    function initRoomCode() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramRoom = urlParams.get('room');
+      let room = paramRoom ? paramRoom.trim().toUpperCase() : localStorage.getItem(STORAGE_KEY_ROOM);
+
+      if (!room) {
+        room = 'MP-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      }
+      localStorage.setItem(STORAGE_KEY_ROOM, room);
+      const codeEl = document.getElementById('current-room-code');
+      if (codeEl) codeEl.textContent = room;
+    }
+
+    window.getActiveRoomCode = () => {
+      let room = localStorage.getItem(STORAGE_KEY_ROOM);
+      if (!room) {
+        initRoomCode();
+        room = localStorage.getItem(STORAGE_KEY_ROOM);
+      }
+      return room || 'MP-DEFAULT';
+    };
+
+    window.getCurrentWatchlist = () => state.watchlist;
+    window.getCurrentActiveSymbol = () => state.activeSymbol;
+    window.applySyncedWatchlist = (remoteList, remoteSymbol) => {
+      state.watchlist = remoteList;
+      localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(state.watchlist));
+      renderWatchlist();
+      if (remoteSymbol && remoteSymbol !== state.activeSymbol) {
+        loadSymbolWidgets(remoteSymbol, false);
+      }
+    };
+
+    const DEFAULT_WATCHLIST = [
+      { symbol: 'OANDA:XAUUSD', name: 'Or Spot ($/oz)', category: 'gold' },
+      { symbol: 'OANDA:XAUEUR', name: 'Or Spot (€/oz)', category: 'gold' },
+      { symbol: 'COMEX:GC1!', name: 'Futures Or COMEX', category: 'gold' },
+      { symbol: 'AMEX:GLD', name: 'ETF SPDR Gold', category: 'gold' },
+      { symbol: 'FOREXCOM:FRA40', name: 'Indice CAC 40', category: 'stocks' },
+      { symbol: 'EURONEXT:MC', name: 'LVMH Moët Hennessy', category: 'stocks' },
+      { symbol: 'NASDAQ:NVDA', name: 'NVIDIA Corporation', category: 'stocks' },
+      { symbol: 'NASDAQ:AAPL', name: 'Apple Inc.', category: 'stocks' }
+    ];
+
+    const SYMBOL_ALIASES = {
+      'OR': 'OANDA:XAUUSD',
+      'GOLD': 'OANDA:XAUUSD',
+      'XAUUSD': 'OANDA:XAUUSD',
+      'OR EUR': 'OANDA:XAUEUR',
+      'XAUEUR': 'OANDA:XAUEUR',
+      'FUTURES OR': 'COMEX:GC1!',
+      'ETF OR': 'AMEX:GLD',
+      'ARGENT': 'OANDA:XAGUSD',
+      'XAGUSD': 'OANDA:XAGUSD',
+      'CAC40': 'FOREXCOM:FRA40',
+      'CAC 40': 'FOREXCOM:FRA40',
+      'LVMH': 'EURONEXT:MC',
+      'TOTAL': 'EURONEXT:TTE',
+      'TOTALENERGIES': 'EURONEXT:TTE',
+      'AIRBUS': 'EURONEXT:AIR',
+      'NVIDIA': 'NASDAQ:NVDA',
+      'APPLE': 'NASDAQ:AAPL',
+      'TESLA': 'NASDAQ:TSLA',
+      'MICROSOFT': 'NASDAQ:MSFT',
+      'BITCOIN': 'BINANCE:BTCUSDT',
+      'BTC': 'BINANCE:BTCUSDT'
+    };
+
+    const REFERENCE_PRICES_EUR = {
+      'OANDA:XAUUSD': 2480.00,
+      'OANDA:XAUEUR': 2480.00,
+      'TVC:GOLD': 2480.00,
+      'COMEX:GC1!': 2495.00,
+      'AMEX:GLD': 228.50,
+      'OANDA:XAGUSD': 29.40,
+      'FOREXCOM:FRA40': 7550.00,
+      'EURONEXT:MC': 645.00,
+      'EURONEXT:TTE': 61.20,
+      'NASDAQ:NVDA': 128.40,
+      'NASDAQ:AAPL': 212.00,
+      'BINANCE:BTCUSDT': 82500.00
+    };
+
+    const state = {
+      theme: localStorage.getItem(STORAGE_KEY_THEME) || 'dark',
+      activeSymbol: 'OANDA:XAUUSD',
+      activeFilter: 'all',
+      orderSide: 'buy',
+      watchlist: [],
+      portfolio: {
+        cash: 10000,
+        positions: [],
+        history: []
+      }
+    };
+
+    /**
+     * Détection de catégorie (Or & Métaux vs Actions & Indices)
+     */
+    function detectCategory(symbol) {
+      const s = symbol.toUpperCase();
+      if (s.includes('XAU') || s.includes('XAG') || s.includes('GOLD') || s.includes('GC1!') || s.includes('GLD')) {
+        return 'gold';
+      }
+      return 'stocks';
+    }
+
+    /**
+     * Vérification de l'état de connexion réseau
+     */
+    function updateNetworkStatus() {
+      const dot = document.getElementById('connection-dot');
+      const text = document.getElementById('connection-text');
+      if (!dot || !text) return;
+
+      if (navigator.onLine) {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+        text.textContent = 'Flux en direct';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+        text.textContent = 'Hors-ligne';
+        showToast('Connexion internet interrompue : les cotations en direct sont en pause.', 'error');
+      }
+    }
+
+    /**
+     * Chargement & Sauvegarde de la Watchlist
+     */
+    function loadWatchlistFromStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_WATCHLIST);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            state.watchlist = parsed;
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Erreur lecture watchlist:', e);
+      }
+      state.watchlist = [...DEFAULT_WATCHLIST];
+      saveWatchlistToStorage();
+    }
+
+    function saveWatchlistToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(state.watchlist));
+        if (window.CloudSyncManager) {
+          window.CloudSyncManager.pushStateToCloud();
+        }
+      } catch (e) {
+        console.error('Erreur sauvegarde localStorage:', e);
+      }
+    }
+
+    function normalizeSymbol(rawInput) {
+      const input = rawInput.trim().toUpperCase();
+      if (SYMBOL_ALIASES[input]) {
+        return SYMBOL_ALIASES[input];
+      }
+      if (input.endsWith('.PA')) {
+        return 'EURONEXT:' + input.replace('.PA', '');
+      }
+      if (!input.includes(':')) {
+        return 'NASDAQ:' + input;
+      }
+      return input;
+    }
+
+    function resolveSymbolLabel(symbol, fallback) {
+      const found = state.watchlist.find(i => i.symbol === symbol);
+      if (found && found.name) return found.name;
+      return fallback || symbol;
+    }
+
+    function addToWatchlist(rawInput, customLabel = '') {
+      const symbol = normalizeSymbol(rawInput);
+      if (state.watchlist.some(item => item.symbol === symbol)) {
+        showToast(`${symbol} est déjà dans votre watchlist.`, 'info');
+        loadSymbolWidgets(symbol);
+        return;
+      }
+
+      const category = detectCategory(symbol);
+      const label = customLabel || (SYMBOL_ALIASES[rawInput.trim().toUpperCase()] ? rawInput.trim().toUpperCase() : symbol);
+      state.watchlist.unshift({ symbol, name: label, category });
+      saveWatchlistToStorage();
+      renderWatchlist();
+      loadSymbolWidgets(symbol);
+      showToast(`${symbol} ajouté à votre watchlist !`, 'success');
+    }
+
+    function removeFromWatchlist(symbol) {
+      state.watchlist = state.watchlist.filter(item => item.symbol !== symbol);
+      saveWatchlistToStorage();
+      renderWatchlist();
+      showToast(`${symbol} retiré de la watchlist.`, 'info');
+    }
+
+    function renderWatchlist() {
+      const container = document.getElementById('watchlist-items');
+      if (!container) return;
+
+      const filtered = state.watchlist.filter(item => {
+        if (state.activeFilter === 'all') return true;
+        return (item.category || detectCategory(item.symbol)) === state.activeFilter;
+      });
+
+      container.innerHTML = '';
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Aucun actif dans cette catégorie.</p>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const isActive = item.symbol === state.activeSymbol;
+        const isGold = (item.category || detectCategory(item.symbol)) === 'gold';
+
+        const card = document.createElement('div');
+        card.className = `group p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+          isActive
+            ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-500 dark:border-terminal-accent'
+            : 'bg-slate-50 dark:bg-terminal-bg border-slate-200 dark:border-terminal-border hover:border-blue-400'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+              isGold ? 'bg-amber-500/15 text-amber-500' : 'bg-blue-500/15 text-blue-500'
+            }">
+              <i class="fa-solid ${isGold ? 'fa-coins' : 'fa-chart-line'} text-xs"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="font-mono text-xs font-bold text-slate-800 dark:text-slate-100 truncate">${item.symbol}</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${item.name || item.symbol}</div>
+            </div>
+          </div>
+          <button type="button" class="remove-wl-btn opacity-0 group-hover:opacity-100 p-1.5 rounded text-slate-400 hover:text-rose-500 transition-all" title="Retirer">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        `;
+
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.remove-wl-btn')) return;
+          loadSymbolWidgets(item.symbol);
+        });
+
+        card.querySelector('.remove-wl-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          removeFromWatchlist(item.symbol);
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    function highlightActiveWatchlistItem() {
+      renderWatchlist();
+    }
+
+    /**
+     * Widgets TradingView globaux & Injection
+     */
+    function injectTradingViewWidget(containerId, scriptSrc, configObj) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      container.innerHTML = '';
+      const widgetWrapper = document.createElement('div');
+      widgetWrapper.className = 'tradingview-widget-container';
+      widgetWrapper.style.width = '100%';
+      widgetWrapper.style.height = '100%';
+
+      const widgetDiv = document.createElement('div');
+      widgetDiv.className = 'tradingview-widget-container__widget';
+      widgetDiv.style.width = '100%';
+      widgetDiv.style.height = '100%';
+      widgetWrapper.appendChild(widgetDiv);
+
+      const script = document.createElement('script');
+      script.type = 'text/javascript';
+      script.src = scriptSrc;
+      script.async = true;
+      script.text = JSON.stringify(configObj);
+
+      widgetWrapper.appendChild(script);
+      container.appendChild(widgetWrapper);
+    }
+
+    function renderTickerTape() {
+      const themeMode = state.theme === 'dark' ? 'dark' : 'light';
+      injectTradingViewWidget(
+        'tv-ticker-tape',
+        'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js',
+        {
+          symbols: [
+            { proName: 'OANDA:XAUUSD', title: 'Or ($/oz)' },
+            { proName: 'OANDA:XAUEUR', title: 'Or (€/oz)' },
+            { proName: 'COMEX:GC1!', title: 'Futures Or' },
+            { proName: 'FOREXCOM:FRA40', title: 'CAC 40' },
+            { proName: 'EURONEXT:MC', title: 'LVMH' },
+            { proName: 'NASDAQ:NVDA', title: 'NVIDIA' },
+            { proName: 'NASDAQ:AAPL', title: 'Apple' },
+            { proName: 'BINANCE:BTCUSDT', title: 'Bitcoin' }
+          ],
+          showSymbolLogo: true,
+          isTransparent: true,
+          displayMode: 'adaptive',
+          colorTheme: themeMode,
+          locale: 'fr'
+        }
+      );
+    }
+
+    function renderMarketOverview() {
+      const themeMode = state.theme === 'dark' ? 'dark' : 'light';
+      injectTradingViewWidget(
+        'tv-market-overview',
+        'https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js',
+        {
+          colorTheme: themeMode,
+          dateRange: '1D',
+          showChart: false,
+          locale: 'fr',
+          width: '100%',
+          height: '100%',
+          largeChartUrl: '',
+          isTransparent: true,
+          showSymbolLogo: true,
+          tabs: [
+            {
+              title: 'Or & Métaux',
+              symbols: [
+                { s: 'OANDA:XAUUSD', d: 'Or Spot ($/oz)' },
+                { s: 'OANDA:XAUEUR', d: 'Or Spot (€/oz)' },
+                { s: 'TVC:GOLD', d: 'Or Référence' },
+                { s: 'COMEX:GC1!', d: 'Futures Or COMEX' },
+                { s: 'AMEX:GLD', d: 'ETF SPDR Gold' },
+                { s: 'OANDA:XAGUSD', d: 'Argent Spot ($/oz)' }
+              ]
+            },
+            {
+              title: 'Actions & Indices',
+              symbols: [
+                { s: 'FOREXCOM:FRA40', d: 'CAC 40' },
+                { s: 'EURONEXT:MC', d: 'LVMH' },
+                { s: 'EURONEXT:TTE', d: 'TotalEnergies' },
+                { s: 'NASDAQ:NVDA', d: 'NVIDIA' },
+                { s: 'NASDAQ:AAPL', d: 'Apple' },
+                { s: 'BINANCE:BTCUSDT', d: 'Bitcoin' }
+              ]
+            }
+          ]
+        }
+      );
+    }
+
+    /**
+     * Système de notification Toast non-bloquant
+     */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        info: 'bg-slate-800 dark:bg-terminal-card text-white border-slate-700 dark:border-terminal-border',
+        error: 'bg-rose-600 text-white border-rose-500'
+      };
+      const icons = {
+        success: 'fa-circle-check',
+        info: 'fa-circle-info',
+        error: 'fa-triangle-exclamation'
+      };
+
+      toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-2.5 rounded-xl border shadow-lg text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"><span>${message}</span>`;
+
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    /**
+     * Gestion du Thème (Sombre / Clair)
+     */
+    function applyTheme(theme, reloadWidgets = true) {
+      state.theme = theme;
+      localStorage.setItem(STORAGE_KEY_THEME, theme);
+
+      const htmlEl = document.documentElement;
+      const iconEl = document.getElementById('theme-icon');
+
+      if (theme === 'dark') {
+        htmlEl.classList.add('dark');
+        if (iconEl) iconEl.className = 'fa-solid fa-sun text-amber-400';
+      } else {
+        htmlEl.classList.remove('dark');
+        if (iconEl) iconEl.className = 'fa-solid fa-moon text-slate-700';
+      }
+
+      if (reloadWidgets) {
+        renderTickerTape();
+        renderMarketOverview();
+        loadSymbolWidgets(state.activeSymbol, false);
+      }
+    }
+
+    /**
+     * Chargement des widgets principaux pour le symbole actif
+     */
+    function loadSymbolWidgets(rawSymbol, pushCloud = true) {
+      const symbol = normalizeSymbol(rawSymbol);
+      state.activeSymbol = symbol;
+      if (pushCloud && window.CloudSyncManager) {
+        window.CloudSyncManager.pushStateToCloud();
+      }
+
+      document.getElementById('active-symbol-label').textContent = symbol;
+      document.getElementById('ta-symbol-badge').textContent = symbol;
+
+      const isDark = state.theme === 'dark';
+      const themeMode = isDark ? 'dark' : 'light';
+      const bgColor = isDark ? '#161b22' : '#ffffff';
+
+      injectTradingViewWidget(
+        'tv-symbol-info',
+        'https://s3.tradingview.com/external-embedding/embed-widget-symbol-info.js',
+        {
+          symbol: symbol,
+          width: '100%',
+          locale: 'fr',
+          colorTheme: themeMode,
+          isTransparent: true
+        }
+      );
+
+      injectTradingViewWidget(
+        'tv-advanced-chart',
+        'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js',
+        {
+          autosize: true,
+          symbol: symbol,
+          interval: 'D',
+          timezone: 'Europe/Paris',
+          theme: themeMode,
+          style: '1',
+          locale: 'fr',
+          backgroundColor: bgColor,
+          gridColor: isDark ? 'rgba(48, 54, 61, 0.35)' : 'rgba(226, 232, 240, 0.6)',
+          enable_publishing: false,
+          allow_symbol_change: true,
+          calendar: false,
+          support_host: 'https://www.tradingview.com'
+        }
+      );
+
+      injectTradingViewWidget(
+        'tv-technical-analysis',
+        'https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js',
+        {
+          interval: '1D',
+          width: '100%',
+          isTransparent: true,
+          height: '100%',
+          symbol: symbol,
+          showIntervalTabs: true,
+          displayMode: 'single',
+          locale: 'fr',
+          colorTheme: themeMode
+        }
+      );
+
+      syncTradeTicketWithSymbol(symbol);
+      highlightActiveWatchlistItem();
+    }
+
+    /**
+     * Gestion du LocalStorage pour le Portefeuille
+     */
+    function loadPortfolioFromStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_PORTFOLIO);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed.cash === 'number') {
+            state.portfolio = {
+              cash: parsed.cash,
+              positions: Array.isArray(parsed.positions) ? parsed.positions : [],
+              history: Array.isArray(parsed.history) ? parsed.history : []
+            };
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Erreur lecture portefeuille:', e);
+      }
+      state.portfolio = { cash: 10000, positions: [], history: [] };
+      savePortfolioToStorage();
+    }
+
+    function savePortfolioToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY_PORTFOLIO, JSON.stringify(state.portfolio));
+      } catch (e) {
+        console.error('Erreur sauvegarde portefeuille:', e);
+      }
+    }
+
+    function formatCurrencyEUR(val) {
+      return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(val);
+    }
+
+    function getReferencePrice(symbol) {
+      const existing = state.portfolio.positions.find(p => p.symbol === symbol);
+      if (existing) return existing.currentPrice;
+      if (REFERENCE_PRICES_EUR[symbol]) return REFERENCE_PRICES_EUR[symbol];
+      return 100.00;
+    }
+
+    function syncTradeTicketWithSymbol(symbol) {
+      const badge = document.getElementById('trade-symbol-badge');
+      const priceInput = document.getElementById('trade-price-input');
+      if (!badge || !priceInput) return;
+
+      badge.textContent = symbol;
+      priceInput.value = getReferencePrice(symbol).toFixed(2);
+      updateEstimatedQuantity();
+    }
+
+    function updateEstimatedQuantity() {
+      const price = parseFloat(document.getElementById('trade-price-input')?.value) || 0;
+      const amount = parseFloat(document.getElementById('trade-amount-input')?.value) || 0;
+      const qtyEl = document.getElementById('trade-estimated-qty');
+      if (!qtyEl) return;
+
+      const qty = price > 0 ? amount / price : 0;
+      qtyEl.textContent = `${qty.toFixed(4)} unités`;
+    }
+
+    function setOrderSide(side) {
+      state.orderSide = side;
+      const buyBtn = document.getElementById('order-side-buy');
+      const sellBtn = document.getElementById('order-side-sell');
+      const submitBtn = document.getElementById('trade-submit-btn');
+
+      if (side === 'buy') {
+        buyBtn.className = 'py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm transition-all';
+        sellBtn.className = 'py-1.5 text-xs font-bold rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all';
+        submitBtn.className = 'w-full py-1.5 text-xs font-semibold rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-700 dark:text-emerald-400 border border-emerald-600/30 transition-colors flex items-center justify-center gap-1.5';
+        submitBtn.innerHTML = '<i class="fa-solid fa-book"></i> Enregistrer l\'achat en suivi';
+      } else {
+        sellBtn.className = 'py-1.5 text-xs font-bold rounded-md bg-rose-600 text-white shadow-sm transition-all';
+        buyBtn.className = 'py-1.5 text-xs font-bold rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all';
+        submitBtn.className = 'w-full py-1.5 text-xs font-semibold rounded-lg bg-rose-600/15 hover:bg-rose-600/25 text-rose-700 dark:text-rose-400 border border-rose-600/30 transition-colors flex items-center justify-center gap-1.5';
+        submitBtn.innerHTML = '<i class="fa-solid fa-book"></i> Enregistrer la vente en suivi';
+      }
+    }
+
+    async function dispatchRealBrokerOrder() {
+      const broker = document.getElementById('broker-select').value;
+      const rawSymbol = state.activeSymbol;
+      const ticker = rawSymbol.includes(':') ? rawSymbol.split(':')[1] : rawSymbol;
+      const amount = parseFloat(document.getElementById('trade-amount-input').value) || 0;
+      const price = parseFloat(document.getElementById('trade-price-input').value) || 0;
+      const qty = price > 0 ? Math.max(0.0001, +(amount / price).toFixed(4)) : 1;
+      const side = state.orderSide;
+
+      const keyId = document.getElementById('alpaca-key-id')?.value.trim();
+      const secretKey = document.getElementById('alpaca-secret-key')?.value.trim();
+      const isLive = document.getElementById('alpaca-live-mode')?.checked;
+
+      if (broker === 'alpaca' && keyId && secretKey) {
+        const endpoint = isLive
+          ? 'https://api.alpaca.markets/v2/orders'
+          : 'https://paper-api.alpaca.markets/v2/orders';
+
+        try {
+          showToast(`Transmission de l'ordre ${side.toUpperCase()} (${ticker}) vers Alpaca...`, 'info');
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'APCA-API-KEY-ID': keyId,
+              'APCA-API-SECRET-KEY': secretKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              symbol: ticker,
+              notional: amount.toFixed(2),
+              side: side,
+              type: 'market',
+              time_in_force: 'day'
+            })
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || 'Erreur API Alpaca');
+          }
+
+          showToast(`Ordre réel Alpaca accepté ! ID : ${data.id}`, 'success');
+          executeOrder(rawSymbol, side, price, amount);
+          setTimeout(() => syncAlpacaAccount(true), 1200);
+          return;
+        } catch (err) {
+          showToast(`Erreur Alpaca : ${err.message}`, 'error');
+          return;
+        }
+      }
+
+      const brokerUrls = {
+        ibkr: `https://www.interactivebrokers.com/portal/#/quote/${encodeURIComponent(ticker)}`,
+        alpaca: `https://app.alpaca.markets/trade/${encodeURIComponent(ticker)}`,
+        saxo: `https://www.saxotrader.com/sim/instant-quote/${encodeURIComponent(ticker)}`,
+        degiro: `https://trader.degiro.nl/trader/#/products`,
+        bourso: `https://clients.boursobank.com/bourse/recherche?query=${encodeURIComponent(ticker)}`
+      };
+
+      const targetUrl = brokerUrls[broker] || brokerUrls.ibkr;
+      showToast(`Ouverture du ticket ${side === 'buy' ? 'ACHAT' : 'VENTE'} (${qty} ${ticker}) chez votre courtier...`, 'success');
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    }
+
+    function executeOrder(symbol, side, price, amountEur) {
+      if (price <= 0 || amountEur <= 0) {
+        showToast('Veuillez saisir un prix et un montant valides.', 'error');
+        return;
+      }
+
+      const qty = amountEur / price;
+      const label = resolveSymbolLabel(symbol, symbol);
+
+      if (side === 'buy') {
+        if (amountEur > state.portfolio.cash + 0.001) {
+          showToast('Solde insuffisant. Déposez des fonds en haut à droite du portefeuille.', 'error');
+          return;
+        }
+
+        state.portfolio.cash -= amountEur;
+        const existing = state.portfolio.positions.find(p => p.symbol === symbol);
+
+        if (existing) {
+          const totalCost = (existing.quantity * existing.avgPrice) + amountEur;
+          existing.quantity += qty;
+          existing.avgPrice = totalCost / existing.quantity;
+          existing.currentPrice = price;
+        } else {
+          state.portfolio.positions.unshift({
+            symbol,
+            name: label,
+            quantity: qty,
+            avgPrice: price,
+            currentPrice: price
+          });
+        }
+
+        state.portfolio.history.unshift({
+          type: 'ACHAT',
+          symbol,
+          amount: amountEur,
+          price,
+          quantity: qty,
+          date: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        });
+
+        showToast(`Achat de ${qty.toFixed(4)} ${symbol} (${formatCurrencyEUR(amountEur)}) exécuté !`, 'success');
+      } else {
+        const existingIndex = state.portfolio.positions.findIndex(p => p.symbol === symbol);
+        if (existingIndex === -1) {
+          showToast(`Vous ne détenez aucune position sur ${symbol}.`, 'error');
+          return;
+        }
+
+        const pos = state.portfolio.positions[existingIndex];
+        const maxPositionValue = pos.quantity * price;
+
+        if (amountEur >= maxPositionValue - 0.01) {
+          state.portfolio.cash += maxPositionValue;
+          state.portfolio.history.unshift({
+            type: 'VENTE',
+            symbol,
+            amount: maxPositionValue,
+            price,
+            quantity: pos.quantity,
+            date: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+          });
+          state.portfolio.positions.splice(existingIndex, 1);
+          showToast(`Position ${symbol} entièrement vendue (${formatCurrencyEUR(maxPositionValue)}).`, 'info');
+        } else {
+          pos.quantity -= qty;
+          pos.currentPrice = price;
+          state.portfolio.cash += amountEur;
+          state.portfolio.history.unshift({
+            type: 'VENTE',
+            symbol,
+            amount: amountEur,
+            price,
+            quantity: qty,
+            date: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+          });
+          showToast(`Vente partielle de ${formatCurrencyEUR(amountEur)} sur ${symbol} effectuée.`, 'info');
+        }
+      }
+
+      savePortfolioToStorage();
+      renderPortfolio();
+    }
+
+    function renderPortfolio() {
+      let investedCost = 0;
+      let currentPositionsValue = 0;
+
+      state.portfolio.positions.forEach(pos => {
+        investedCost += pos.quantity * pos.avgPrice;
+        currentPositionsValue += pos.quantity * pos.currentPrice;
+      });
+
+      const totalValue = state.portfolio.cash + currentPositionsValue;
+      const pnl = currentPositionsValue - investedCost;
+      const pnlPct = investedCost > 0 ? (pnl / investedCost) * 100 : 0;
+
+      document.getElementById('pf-total-value').textContent = formatCurrencyEUR(totalValue);
+      document.getElementById('pf-cash-balance').textContent = formatCurrencyEUR(state.portfolio.cash);
+      document.getElementById('pf-invested-value').textContent = formatCurrencyEUR(currentPositionsValue);
+      document.getElementById('pf-positions-count').textContent = state.portfolio.positions.length;
+
+      const pnlEl = document.getElementById('pf-pnl-value');
+      const sign = pnl >= 0 ? '+' : '';
+      pnlEl.textContent = `${sign}${formatCurrencyEUR(pnl)} (${sign}${pnlPct.toFixed(2)}%)`;
+      pnlEl.className = `text-base sm:text-lg font-bold font-mono mt-0.5 block ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
+
+      const posList = document.getElementById('pf-positions-list');
+      posList.innerHTML = '';
+
+      if (state.portfolio.positions.length === 0) {
+        posList.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-center py-6 px-4 rounded-lg border border-dashed border-slate-300 dark:border-terminal-border">
+            <i class="fa-solid fa-piggy-bank text-2xl text-slate-400 mb-2"></i>
+            <p class="text-xs font-medium text-slate-600 dark:text-slate-300">Aucune position ouverte pour le moment</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Choisissez un montant à gauche et cliquez sur <strong>Confirmer l'achat</strong> pour investir.</p>
+          </div>
+        `;
+      } else {
+        state.portfolio.positions.forEach(pos => {
+          const posValue = pos.quantity * pos.currentPrice;
+          const posCost = pos.quantity * pos.avgPrice;
+          const posPnl = posValue - posCost;
+          const posPnlPct = posCost > 0 ? (posPnl / posCost) * 100 : 0;
+          const isPositive = posPnl >= 0;
+          const isGold = detectCategory(pos.symbol) === 'gold';
+
+          const row = document.createElement('div');
+          row.className = 'p-2.5 rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border flex items-center justify-between gap-2 hover:border-blue-500/50 transition-colors cursor-pointer';
+          row.innerHTML = `
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isGold ? 'bg-amber-500/15 text-amber-500' : 'bg-blue-500/15 text-blue-500'}">
+                <i class="fa-solid ${isGold ? 'fa-coins' : 'fa-briefcase'} text-xs"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-mono text-xs font-bold text-slate-800 dark:text-slate-100 truncate">${pos.symbol}</span>
+                  <span class="text-[10px] font-mono text-slate-400">×${pos.quantity.toFixed(3)}</span>
+                </div>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">PRU : ${formatCurrencyEUR(pos.avgPrice)}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2.5 shrink-0">
+              <div class="text-right">
+                <div class="font-mono text-xs font-bold text-slate-800 dark:text-slate-100">${formatCurrencyEUR(posValue)}</div>
+                <div class="font-mono text-[11px] ${isPositive ? 'text-emerald-500' : 'text-rose-500'}">
+                  ${isPositive ? '+' : ''}${formatCurrencyEUR(posPnl)} (${isPositive ? '+' : ''}${posPnlPct.toFixed(1)}%)
+                </div>
+              </div>
+              <button type="button" data-sell-symbol="${pos.symbol}" class="quick-close-pos px-2 py-1 text-[11px] font-semibold rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors" title="Vendre toute la position">
+                Vendre
+              </button>
+            </div>
+          `;
+
+          row.addEventListener('click', (e) => {
+            if (e.target.closest('.quick-close-pos')) return;
+            loadSymbolWidgets(pos.symbol);
+          });
+
+          row.querySelector('.quick-close-pos').addEventListener('click', (e) => {
+            e.stopPropagation();
+            executeOrder(pos.symbol, 'sell', pos.currentPrice, posValue);
+          });
+
+          posList.appendChild(row);
+        });
+      }
+
+      const histList = document.getElementById('pf-history-list');
+      histList.innerHTML = '';
+      if (state.portfolio.history.length === 0) {
+        histList.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Aucune transaction enregistrée.</p>`;
+      } else {
+        state.portfolio.history.slice(0, 20).forEach(tx => {
+          const isBuy = tx.type === 'ACHAT';
+          const isDeposit = tx.type === 'DÉPÔT';
+          const badgeClass = isDeposit
+            ? 'bg-blue-500/15 text-blue-500'
+            : isBuy
+              ? 'bg-emerald-500/15 text-emerald-500'
+              : 'bg-rose-500/15 text-rose-500';
+
+          const item = document.createElement('div');
+          item.className = 'px-2.5 py-2 rounded-lg bg-white dark:bg-terminal-card border border-slate-200 dark:border-terminal-border flex items-center justify-between text-xs';
+          item.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold ${badgeClass}">${tx.type}</span>
+              <span class="font-mono font-semibold text-slate-700 dark:text-slate-200">${tx.symbol}</span>
+            </div>
+            <div class="text-right font-mono">
+              <span class="font-bold text-slate-800 dark:text-slate-100">${formatCurrencyEUR(tx.amount)}</span>
+              <span class="text-[10px] text-slate-400 ml-1.5">${tx.date}</span>
+            </div>
+          `;
+          histList.appendChild(item);
+        });
+      }
+    }
+
+    async function syncAlpacaAccount(silent = false) {
+      const keyId = document.getElementById('alpaca-key-id')?.value.trim();
+      const secretKey = document.getElementById('alpaca-secret-key')?.value.trim();
+      const isLive = document.getElementById('alpaca-live-mode')?.checked;
+      const badge = document.getElementById('broker-sync-badge');
+
+      if (!keyId || !secretKey) {
+        if (!silent) {
+          document.getElementById('broker-api-panel').classList.remove('hidden');
+          showToast('Renseignez vos clés API Alpaca pour synchroniser votre vrai compte.', 'info');
+        }
+        return;
+      }
+
+      const baseUrl = isLive ? 'https://api.alpaca.markets' : 'https://paper-api.alpaca.markets';
+      const headers = {
+        'APCA-API-KEY-ID': keyId,
+        'APCA-API-SECRET-KEY': secretKey
+      };
+
+      try {
+        if (!silent) showToast('Synchronisation avec votre compte Alpaca...', 'info');
+
+        const [accRes, posRes] = await Promise.all([
+          fetch(`${baseUrl}/v2/account`, { headers }),
+          fetch(`${baseUrl}/v2/positions`, { headers })
+        ]);
+
+        if (!accRes.ok) {
+          const errData = await accRes.json().catch(() => ({}));
+          throw new Error(errData.message || `Erreur HTTP ${accRes.status}`);
+        }
+
+        const account = await accRes.json();
+        const positions = posRes.ok ? await posRes.json() : [];
+
+        state.portfolio.cash = parseFloat(account.cash) || 0;
+        state.portfolio.positions = positions.map(p => ({
+          symbol: p.symbol,
+          name: p.symbol,
+          quantity: parseFloat(p.qty) || 0,
+          avgPrice: parseFloat(p.avg_entry_price) || 0,
+          currentPrice: parseFloat(p.current_price) || 0
+        }));
+
+        savePortfolioToStorage();
+        renderPortfolio();
+
+        if (badge) {
+          badge.textContent = isLive ? 'Connecté • Compte Réel' : 'Connecté • Paper API';
+          badge.className = isLive
+            ? 'text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 font-semibold'
+            : 'text-[11px] font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 font-semibold';
+        }
+
+        if (!silent) {
+          showToast(`Compte synchronisé ! Solde disponible : ${formatCurrencyEUR(state.portfolio.cash)}`, 'success');
+        }
+      } catch (err) {
+        if (badge) {
+          badge.textContent = 'Erreur Sync API';
+          badge.className = 'text-[11px] font-mono px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-500 border border-rose-500/30';
+        }
+        if (!silent) {
+          showToast(`Échec de synchronisation : ${err.message}`, 'error');
+        }
+      }
+    }
+
+    function loadBrokerConfigFromStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_BROKER);
+        if (saved) {
+          const cfg = JSON.parse(saved);
+          if (cfg.broker) document.getElementById('broker-select').value = cfg.broker;
+          if (cfg.keyId) document.getElementById('alpaca-key-id').value = cfg.keyId;
+          if (cfg.secretKey) document.getElementById('alpaca-secret-key').value = cfg.secretKey;
+          if (typeof cfg.isLive === 'boolean') document.getElementById('alpaca-live-mode').checked = cfg.isLive;
+          if (cfg.keyId && cfg.secretKey) {
+            syncAlpacaAccount(true);
+          }
+        }
+      } catch (e) {
+        console.error('Erreur lecture config courtier:', e);
+      }
+    }
+
+    function saveBrokerConfigToStorage() {
+      try {
+        const cfg = {
+          broker: document.getElementById('broker-select').value,
+          keyId: document.getElementById('alpaca-key-id').value.trim(),
+          secretKey: document.getElementById('alpaca-secret-key').value.trim(),
+          isLive: document.getElementById('alpaca-live-mode').checked
+        };
+        localStorage.setItem(STORAGE_KEY_BROKER, JSON.stringify(cfg));
+      } catch (e) {
+        console.error('Erreur sauvegarde config courtier:', e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setupPWAAndInstallPrompt();
+      initRoomCode();
+      updateNetworkStatus();
+      window.addEventListener('online', updateNetworkStatus);
+      window.addEventListener('offline', updateNetworkStatus);
+
+      loadWatchlistFromStorage();
+      loadPortfolioFromStorage();
+      applyTheme(state.theme, false);
+
+      renderTickerTape();
+      renderMarketOverview();
+      loadSymbolWidgets(state.activeSymbol, false);
+      renderWatchlist();
+      renderPortfolio();
+      loadBrokerConfigFromStorage();
+      setupEventListeners();
+    });
+
+    function setupPWAAndInstallPrompt() {
+      const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0d1117"/><path d="M96 352l104-112 80 64 136-160" fill="none" stroke="#2f81f7" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/><circle cx="416" cy="144" r="28" fill="#2ea043"/></svg>`;
+      const iconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg);
+      const manifest = {
+        name: 'MarketPulse — Terminal Boursier & Or',
+        short_name: 'MarketPulse',
+        description: 'Cours en direct des actions, de l\'or et cockpit d\'investissement personnel',
+        start_url: window.location.href,
+        display: 'standalone',
+        background_color: '#0d1117',
+        theme_color: '#0d1117',
+        icons: [
+          { src: iconUrl, sizes: '192x192', type: 'image/svg+xml' },
+          { src: iconUrl, sizes: '512x512', type: 'image/svg+xml' }
+        ]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+      const manifestLink = document.getElementById('pwa-manifest-link');
+      if (manifestLink) {
+        manifestLink.href = URL.createObjectURL(manifestBlob);
+      }
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+      });
+    }
+
+    function setupEventListeners() {
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme, true);
+      });
+
+      document.getElementById('quick-search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('quick-search-input');
+        const val = input.value.trim();
+        if (val) {
+          loadSymbolWidgets(val);
+          input.value = '';
+        }
+      });
+
+      document.getElementById('add-watchlist-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('watchlist-symbol-input');
+        const val = input.value.trim();
+        if (val) {
+          addToWatchlist(val);
+          input.value = '';
+        }
+      });
+
+      document.getElementById('add-current-to-watchlist').addEventListener('click', () => {
+        addToWatchlist(state.activeSymbol);
+      });
+
+      document.getElementById('reset-watchlist-btn').addEventListener('click', () => {
+        state.watchlist = [...DEFAULT_WATCHLIST];
+        saveWatchlistToStorage();
+        renderWatchlist();
+        showToast('Watchlist réinitialisée (Or & Actions par défaut).', 'info');
+      });
+
+      document.querySelectorAll('.quick-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const sym = btn.dataset.symbol;
+          loadSymbolWidgets(sym);
+        });
+      });
+
+      document.querySelectorAll('.quick-add-gold').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const sym = btn.dataset.addSymbol;
+          const label = btn.dataset.addLabel;
+          addToWatchlist(sym, label);
+        });
+      });
+
+      document.querySelectorAll('.watchlist-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.activeFilter = btn.dataset.filter;
+          document.querySelectorAll('.watchlist-filter-btn').forEach(b => {
+            if (b.dataset.filter === state.activeFilter) {
+              b.className = 'watchlist-filter-btn py-1.5 px-2 text-xs font-medium rounded-md bg-white dark:bg-terminal-card text-slate-900 dark:text-white shadow-sm transition-all flex items-center justify-center gap-1';
+            } else {
+              b.className = 'watchlist-filter-btn py-1.5 px-2 text-xs font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all flex items-center justify-center gap-1';
+            }
+          });
+          renderWatchlist();
+        });
+      });
+
+      document.getElementById('deposit-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('deposit-amount');
+        const amount = parseFloat(input.value);
+        if (amount > 0) {
+          state.portfolio.cash += amount;
+          state.portfolio.history.unshift({
+            type: 'DÉPÔT',
+            symbol: 'EUR',
+            amount,
+            price: 1,
+            quantity: amount,
+            date: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+          });
+          savePortfolioToStorage();
+          renderPortfolio();
+          showToast(`Dépôt de ${formatCurrencyEUR(amount)} crédité sur votre solde !`, 'success');
+        }
+      });
+
+      document.getElementById('reset-portfolio-btn').addEventListener('click', () => {
+        state.portfolio = { cash: 10000, positions: [], history: [] };
+        savePortfolioToStorage();
+        renderPortfolio();
+        showToast('Portefeuille réinitialisé à 10 000,00 €.', 'info');
+      });
+
+      document.getElementById('order-side-buy').addEventListener('click', () => setOrderSide('buy'));
+      document.getElementById('order-side-sell').addEventListener('click', () => setOrderSide('sell'));
+
+      document.getElementById('trade-price-input').addEventListener('input', updateEstimatedQuantity);
+      document.getElementById('trade-amount-input').addEventListener('input', updateEstimatedQuantity);
+
+      document.querySelectorAll('.pct-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pct = parseFloat(btn.dataset.pct);
+          const amountInput = document.getElementById('trade-amount-input');
+          if (state.orderSide === 'buy') {
+            amountInput.value = Math.floor(state.portfolio.cash * pct);
+          } else {
+            const pos = state.portfolio.positions.find(p => p.symbol === state.activeSymbol);
+            const price = parseFloat(document.getElementById('trade-price-input').value) || 0;
+            const maxVal = pos ? pos.quantity * price : 0;
+            amountInput.value = (maxVal * pct).toFixed(2);
+          }
+          updateEstimatedQuantity();
+        });
+      });
+
+      document.getElementById('trade-order-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const price = parseFloat(document.getElementById('trade-price-input').value);
+        const amount = parseFloat(document.getElementById('trade-amount-input').value);
+        executeOrder(state.activeSymbol, state.orderSide, price, amount);
+      });
+
+      document.getElementById('toggle-broker-api-btn').addEventListener('click', () => {
+        document.getElementById('broker-api-panel').classList.toggle('hidden');
+      });
+
+      document.getElementById('save-broker-api-btn').addEventListener('click', () => {
+        document.getElementById('broker-select').value = 'alpaca';
+        saveBrokerConfigToStorage();
+        document.getElementById('broker-api-panel').classList.add('hidden');
+        syncAlpacaAccount(false);
+      });
+
+      document.getElementById('sync-alpaca-account-btn').addEventListener('click', () => {
+        syncAlpacaAccount(false);
+      });
+
+      document.getElementById('execute-real-broker-btn').addEventListener('click', () => {
+        dispatchRealBrokerOrder();
+      });
+
+      document.getElementById('pf-tab-history').addEventListener('click', () => {
+        document.getElementById('pf-positions-list').classList.add('hidden');
+        document.getElementById('pf-history-list').classList.remove('hidden');
+        document.getElementById('pf-tab-history').className = 'text-xs font-bold px-2.5 py-1 rounded-md bg-white dark:bg-terminal-card text-slate-900 dark:text-white shadow-sm';
+        document.getElementById('pf-tab-positions').className = 'text-xs font-medium px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white';
+      });
+
+      document.getElementById('pf-tab-positions').addEventListener('click', () => {
+        document.getElementById('pf-history-list').classList.add('hidden');
+        document.getElementById('pf-positions-list').classList.remove('hidden');
+        document.getElementById('pf-tab-positions').className = 'text-xs font-bold px-2.5 py-1 rounded-md bg-white dark:bg-terminal-card text-slate-900 dark:text-white shadow-sm';
+        document.getElementById('pf-tab-history').className = 'text-xs font-medium px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white';
+      });
+
+      document.getElementById('simulate-tick-btn').addEventListener('click', () => {
+        if (state.portfolio.positions.length === 0) {
+          showToast('Ouvrez d\'abord une position pour suivre ses variations.', 'info');
+          return;
+        }
+        state.portfolio.positions.forEach(pos => {
+          const delta = (Math.random() - 0.47) * 0.025;
+          pos.currentPrice = Math.max(0.01, pos.currentPrice * (1 + delta));
+        });
+        syncTradeTicketWithSymbol(state.activeSymbol);
+        savePortfolioToStorage();
+        renderPortfolio();
+        showToast('Cours des positions actualisés !', 'info');
+      });
+
+      const shareModal = document.getElementById('share-install-modal');
+      document.getElementById('open-share-modal-btn').addEventListener('click', () => {
+        shareModal.classList.remove('hidden');
+      });
+      document.getElementById('install-app-btn').addEventListener('click', () => {
+        shareModal.classList.remove('hidden');
+      });
+      document.getElementById('close-share-modal-btn').addEventListener('click', () => {
+        shareModal.classList.add('hidden');
+      });
+      shareModal.addEventListener('click', (e) => {
+        if (e.target === shareModal) shareModal.classList.add('hidden');
+      });
+
+      document.getElementById('trigger-native-install-btn').addEventListener('click', async () => {
+        if (deferredInstallPrompt) {
+          deferredInstallPrompt.prompt();
+          const { outcome } = await deferredInstallPrompt.userChoice;
+          deferredInstallPrompt = null;
+          if (outcome === 'accepted') {
+            showToast('Application installée sur votre appareil !', 'success');
+          }
+        } else {
+          showToast('Utilisez le menu de votre navigateur (« Sur l\'écran d\'accueil » ou « Installer l\'application »).', 'info');
+        }
+      });
+
+      document.getElementById('open-popup-window-btn').addEventListener('click', () => {
+        const popupFeatures = 'width=440,height=780,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes';
+        const win = window.open(window.location.href, 'MarketPulsePopup', popupFeatures);
+        if (win) {
+          showToast('Terminal ouvert en fenêtre Pop-up compacte !', 'success');
+          shareModal.classList.add('hidden');
+        } else {
+          showToast('Autorisez les pop-ups dans votre navigateur pour ouvrir la mini-fenêtre.', 'error');
+        }
+      });
+
+      document.getElementById('copy-room-link-btn').addEventListener('click', () => {
+        const room = window.getActiveRoomCode();
+        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(room)}`;
+        const tempInput = document.createElement('input');
+        tempInput.value = shareUrl;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        showToast(`Lien de partage copié ! (Code : ${room})`, 'success');
+      });
+
+      document.getElementById('join-room-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('join-room-input');
+        const newCode = input.value.trim().toUpperCase();
+        if (!newCode) return;
+        localStorage.setItem(STORAGE_KEY_ROOM, newCode);
+        document.getElementById('current-room-code').textContent = newCode;
+        input.value = '';
+        if (window.CloudSyncManager) {
+          window.CloudSyncManager.subscribeToRoom(newCode);
+        }
+        showToast(`Connecté à l'espace partagé ${newCode} !`, 'success');
+      });
+    }
+  </script>
+</body>
+</html>
